@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import Logo from "../assets/logo.png";
-import {createUserWithEmailAndPassword, updateProfile} from "firebase/auth"
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
+import { auth, storage, db } from "../firebase";
+import { getDownloadURL, uploadBytesResumable, ref } from "firebase/storage";
+import { setDoc, doc } from "firebase/firestore";
 
 const MenteeSignup = () => {
   const [profilePicture, setProfilePicture] = useState(null);
@@ -23,17 +25,42 @@ const MenteeSignup = () => {
     const lastName = e.target[1].value;
     const email = e.target[2].value;
     const password = e.target[3].value;
+    const file = e.target[4].value;
 
     try {
       const res = await createUserWithEmailAndPassword(auth, email, password);
 
-      const date = new Date().getTime()
-      const storageRef = ref (storage, `${firstName + lastName + date}`);
+      const date = new Date().getTime();
+      const storageRef = ref(storage, `${firstName} ${lastName + date}`);
 
-      
+      await uploadBytesResumable(storageRef, file).then(() => {
+        getDownloadURL(storageRef).then(async (downloadURL) => {
+          try {
+            await updateProfile(res.user, {
+              firstName,
+              lastName,
+              photoURL: downloadURL,
+            });
 
+            await setDoc(doc(db, "students", res.user.uid), {
+              uid: res.user.uid,
+              firstName,
+              lastName,
+              email,
+              photoURL: downloadURL,
+            });
+
+            await setDoc(doc(db, "studentChats", res.user.uid), {});
+            
+
+
+          } catch (error) {
+            console.log(error);
+          }
+        });
+      });
     } catch (error) {
-      
+      console.log(error);
     }
   };
 
